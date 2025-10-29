@@ -485,6 +485,17 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             disable_blurring = self.disable_blur_var.get()
             overwrite_existing = self.overwrite_var.get()
             input_for_process = tmp_input_path if tmp_input_path else self.input_file_path
+            # If a temporary resized input was created, intermediates should still be
+            # saved next to the original input file (not in the temp dir). Provide
+            # an explicit intermediates_dir when requested.
+            intermediates_dir = None
+            if save_intermediates:
+                # place intermediates next to the original input file for discoverability
+                try:
+                    intermediates_dir = os.path.join(os.path.dirname(self.input_file_path), "processing")
+                except Exception:
+                    intermediates_dir = None
+
             normal_map = self.processor.process(
                 input_for_process,
                 output_path,
@@ -495,7 +506,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 save_intermediates=save_intermediates,
                 invert_mask=invert_mask,
                 disable_blurring=disable_blurring,
-                overwrite_existing=overwrite_existing
+                overwrite_existing=overwrite_existing,
+                intermediates_dir=intermediates_dir
             )
             try:
                 if tmp_input_path and os.path.exists(tmp_input_path):

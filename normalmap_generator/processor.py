@@ -61,7 +61,7 @@ class MaskToNormalMap:
 
     def process(self, input_path, output_path, profile_type=ProfileType.LINEAR, radius=15, strength=1.0,
                 normal_map_type=NormalMapType.DX, save_intermediates=False, invert_mask=False,
-                disable_blurring=True, overwrite_existing=True):
+                disable_blurring=True, overwrite_existing=True, intermediates_dir: str = None):
         pil_image = Image.open(input_path).convert("L")
         mask_img = np.array(pil_image)
         edges = self.detect_edges(mask_img)
@@ -82,7 +82,11 @@ class MaskToNormalMap:
                 i += 1
         Image.fromarray(cv2.cvtColor(normal, cv2.COLOR_BGR2RGB)).save(out_path, format="PNG")
         if save_intermediates:
-            proc_dir = os.path.join(os.path.dirname(input_path), "processing")
+            # If caller supplied an intermediates_dir, use it; otherwise place next to input_path
+            if intermediates_dir:
+                proc_dir = intermediates_dir
+            else:
+                proc_dir = os.path.join(os.path.dirname(input_path), "processing")
             os.makedirs(proc_dir, exist_ok=True)
             bn = os.path.basename(input_path).rsplit('.', 1)[0]
             cv2.imwrite(os.path.join(proc_dir, f"{bn}_edges.png"), edges)

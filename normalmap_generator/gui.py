@@ -279,8 +279,23 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             base_name = os.path.basename(self.input_file_path).split('.')[0]
             output_path = os.path.join(output_dir, f"{base_name}_normal.png")
             profile_type = ProfileType(self.profile_var.get())
+            # Read user-specified radius and strength and apply scale correction so that
+            # the saved full-resolution output visually matches the 512px preview.
             radius = int(self.radius_var.get())
             strength = float(self.strength_var.get())
+            preview_size = 512
+            scale = 1.0
+            try:
+                # determine scale factor between preview (512) and actual image width
+                with Image.open(self.input_file_path) as _img:
+                    img_w, img_h = _img.size
+                scale = max(1.0, img_w / float(preview_size))
+                scaled_radius = max(1, int(round(radius * scale)))
+            except Exception:
+                # fallback: no scaling
+                scaled_radius = radius
+            # scale strength proportionally so that gradient amplitudes match preview
+            scaled_strength = strength * float(scale)
             normal_map_type = NormalMapType(self.normal_type_var.get())
             save_intermediates = self.intermediate_var.get()
             invert_mask = self.invert_var.get()
@@ -290,8 +305,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 self.input_file_path,
                 output_path,
                 profile_type=profile_type,
-                radius=radius,
-                strength=strength,
+                radius=scaled_radius,
+                strength=scaled_strength,
                 normal_map_type=normal_map_type,
                 save_intermediates=save_intermediates,
                 invert_mask=invert_mask,

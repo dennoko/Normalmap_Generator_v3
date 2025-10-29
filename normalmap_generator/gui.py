@@ -11,6 +11,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 
 from .processor import MaskToNormalMap
 from .types import ProfileType, NormalMapType
+import tempfile
 
 
 class NormalMapGeneratorApp(TkinterDnD.Tk):
@@ -112,6 +113,23 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.intermediate_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(itf, text="中間ファイルを保存", font=self.default_font, variable=self.intermediate_var).pack(side="left", padx=5)
 
+        # Output resolution selection
+        rf = ctk.CTkFrame(adv)
+        rf.pack(fill="x", padx=5, pady=5)
+        ctk.CTkLabel(rf, text="出力解像度:", font=self.default_font).pack(side="left", padx=5)
+        self.output_resolution_var = ctk.StringVar(value="512")
+        self.res_option = ctk.CTkOptionMenu(rf, values=["256", "512", "1024", "2048", "4096"], variable=self.output_resolution_var, font=self.default_font)
+        self.res_option.pack(side="left", padx=5)
+
+        # Input preview visibility toggle (default: hidden)
+        ipf = ctk.CTkFrame(adv)
+        ipf.pack(fill="x", padx=5, pady=5)
+        self.show_input_preview_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(ipf, text="入力プレビューを表示", font=self.default_font, variable=self.show_input_preview_var).pack(side="left", padx=5)
+        # when toggled, refresh the input preview display
+        self.show_input_preview_var.trace_add('write', lambda *a: self._refresh_input_preview())
+
+        # Action button
         self.execute_button = ctk.CTkButton(settings, text="ノーマルマップ生成", font=self.bold_font, height=40, command=self.generate_normal_map)
         self.execute_button.pack(fill="x", padx=10, pady=20)
 
@@ -123,9 +141,15 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         status = ctk.CTkFrame(self, height=30)
         status.pack(fill="x", padx=10, pady=5)
         self.status_label = ctk.CTkLabel(status, text="ステータス: 待機中", font=self.default_font)
-        ctk.CTkLabel(preview, text="入力画像プレビュー", font=self.default_font).pack(anchor="center", pady=5)
-        self.input_preview = ctk.CTkLabel(preview, text="画像が読み込まれていません", font=self.default_font)
-        self.input_preview.pack(pady=10)
+        self.status_label.pack(side="left", padx=10)
+
+        # Input preview section (can be hidden/shown)
+        self.input_section = ctk.CTkFrame(preview)
+        self.input_section.pack(anchor="center", pady=5)
+        self.input_preview_label = ctk.CTkLabel(self.input_section, text="入力画像プレビュー", font=self.default_font)
+        self.input_preview_label.pack(anchor="center", pady=2)
+        self.input_preview = ctk.CTkLabel(self.input_section, text="画像が読み込まれていません", font=self.default_font)
+        self.input_preview.pack(pady=5)
 
     def _on_param_change(self, event=None):
         self._schedule_preview()
@@ -235,8 +259,49 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.status_label.configure(text=f"ステータス: {os.path.basename(file_path)}を読み込みました")
             self._last_preview_params = None
             self._schedule_preview()
+            # refresh preview display according to current toggle
+            self._refresh_input_preview()
         except Exception as e:
             messagebox.showerror("エラー", f"画像読み込みエラー: {e}")
+
+    def _refresh_input_preview(self):
+        # Show or hide the input preview section based on the toggle.
+        try:
+            if not self.input_file_path:
+                # no input: hide
+                try:
+                    if self.input_section.winfo_ismapped():
+                        self.input_section.pack_forget()
+                except Exception:
+                    pass
+                return
+            if self.show_input_preview_var.get():
+                # ensure section is packed
+                try:
+                    if not self.input_section.winfo_ismapped():
+                        self.input_section.pack(anchor="center", pady=5)
+                except Exception:
+                    pass
+                image = Image.open(self.input_file_path)
+                image.thumbnail((300, 300), Image.LANCZOS)
+                self.preview_img = ImageTk.PhotoImage(image)
+                self.input_preview.configure(image=self.preview_img, text="")
+            else:
+                # hide image section entirely
+                try:
+                    if self.input_section.winfo_ismapped():
+                        self.input_section.pack_forget()
+                except Exception:
+                    pass
+        except Exception as e:
+            # If preview fails, hide section and report
+            try:
+                if self.input_section.winfo_ismapped():
+                    self.input_section.pack_forget()
+            except Exception:
+                pass
+            self.preview_img = None
+            self.update_status(f"プレビュー読み込み失敗: {e}")
 
     def validate_inputs(self):
         try:
@@ -277,15 +342,38 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             profile_type = ProfileType(self.profile_var.get())
             radius = int(self.radius_var.get())
             strength = float(self.strength_var.get())
-            # Apply scale correction so saved output matches the 512px preview appearance.
+            # Determine desired output resolution and compute scale relative to 512px preview.
             preview_size = 512.0
+            selected_res = 0
             try:
-                with Image.open(self.input_file_path) as _img:
-                    img_w, img_h = _img.size
-                scale = float(img_w) / preview_size
+                selected_res = int(self.output_resolution_var.get())
             except Exception:
+                selected_res = 0
+
+            tmp_input_path = None
+            try:
+                with Image.open(self.input_file_path) as orig_img:
+                    img_w, img_h = orig_img.size
+                    # If user selected a target resolution, compute output width accordingly
+                    if selected_res and selected_res > 0:
+                        out_w = int(selected_res)
+                        out_h = int(round(float(img_h) * (float(out_w) / float(img_w)))) if img_w != 0 else img_h
+                    else:
+                        out_w, out_h = img_w, img_h
+                    scale = float(out_w) / preview_size
+                    # If target size differs from original, create a temporary resized image for processing
+                    if out_w != img_w or out_h != img_h:
+                        fd, tmp_path = tempfile.mkstemp(suffix=".png")
+                        os.close(fd)
+                        resized = orig_img.resize((out_w, out_h), Image.LANCZOS)
+                        resized.save(tmp_path, format="PNG")
+                        tmp_input_path = tmp_path
+            except Exception:
+                # fallback: no scaling, use original path
                 scale = 1.0
-            # Allow scale < 1.0 (smaller outputs) so appearance matches preview regardless of size.
+                tmp_input_path = None
+
+            # Apply scaling to radius/strength so output visually matches preview
             radius_scaled = max(1, int(round(radius * scale)))
             strength_scaled = float(strength) * float(scale)
             normal_map_type = NormalMapType(self.normal_type_var.get())
@@ -293,8 +381,9 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             invert_mask = self.invert_var.get()
             disable_blurring = self.disable_blur_var.get()
             overwrite_existing = self.overwrite_var.get()
+            input_for_process = tmp_input_path if tmp_input_path else self.input_file_path
             normal_map = self.processor.process(
-                self.input_file_path,
+                input_for_process,
                 output_path,
                 profile_type=profile_type,
                 radius=radius_scaled,
@@ -305,6 +394,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 disable_blurring=disable_blurring,
                 overwrite_existing=overwrite_existing
             )
+            # cleanup temporary resized input if created
+            try:
+                if tmp_input_path and os.path.exists(tmp_input_path):
+                    os.remove(tmp_input_path)
+            except Exception:
+                pass
             # Do not attempt to show an output preview widget (removed). Notify completion instead.
             self.after(0, lambda: self._on_process_complete(output_path))
         except Exception as e:

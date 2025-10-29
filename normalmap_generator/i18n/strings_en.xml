@@ -18,6 +18,8 @@
   <string key="normal_map_gl">OpenGL (Y-)</string>
   <string key="save_intermediates">Save intermediate files</string>
   <string key="output_resolution_label">Output resolution:</string>
+  <string key="output_dir_label">Output directory:</string>
+  <string key="select_output_dir">Select output directory</string>
   <string key="show_input_preview">Show input preview</string>
   <string key="generate_button">Generate normal map</string>
   <string key="realtime_preview_title">Realtime preview (512x512 processing)</string>

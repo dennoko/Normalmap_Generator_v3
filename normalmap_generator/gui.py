@@ -63,6 +63,17 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.browse_button = ctk.CTkButton(self.file_frame, text=i18n.get('browse_button'), font=self.default_font, command=self.browse_file, fg_color="#4AA3FF", hover_color="#3A8EE6")
         self.browse_button.pack(side="left", padx=5)
 
+        # Output directory selector (appears below the input file entry)
+        self.output_dir_var = tk.StringVar(value="")
+        self.output_frame = ctk.CTkFrame(self, fg_color="#0F1115")
+        self.output_frame.pack(fill="x", padx=10, pady=(0, 6))
+        self.output_label = ctk.CTkLabel(self.output_frame, text=i18n.get('output_dir_label'), font=self.default_font, text_color="#E6EEF8")
+        self.output_label.pack(side="left", padx=5)
+        self.output_dir_entry = ctk.CTkEntry(self.output_frame, width=400, font=self.default_font, textvariable=self.output_dir_var, fg_color="#24262C", text_color="#E6EEF8")
+        self.output_dir_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.output_browse_button = ctk.CTkButton(self.output_frame, text=i18n.get('browse_button'), font=self.default_font, command=self.browse_output_dir, fg_color="#4AA3FF", hover_color="#3A8EE6")
+        self.output_browse_button.pack(side="left", padx=5)
+
         # Center area: settings (left) + preview (right)
         self.center = ctk.CTkFrame(self, fg_color="#0F1115")
         self.center.pack(fill="both", expand=True, padx=10, pady=10)
@@ -237,6 +248,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.normal_gl.configure(text=i18n.get('normal_map_gl'))
             self.intermediate_cb.configure(text=i18n.get('save_intermediates'))
             self.output_res_label.configure(text=i18n.get('output_resolution_label'))
+            self.output_label.configure(text=i18n.get('output_dir_label'))
             self.show_input_preview_cb.configure(text=i18n.get('show_input_preview'))
             self.execute_button.configure(text=i18n.get('generate_button'))
             self.realtime_label.configure(text=i18n.get('realtime_preview_title'))
@@ -247,6 +259,15 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.lang_toggle.configure(text=i18n.get('enable_english_mode'))
         except Exception:
             # Best-effort localization; ignore individual failures
+            pass
+
+    def browse_output_dir(self):
+        try:
+            dir_path = filedialog.askdirectory(title=i18n.get('select_output_dir'))
+            if dir_path:
+                self.output_dir_var.set(dir_path)
+        except Exception:
+            # fail quietly; user can type a path manually
             pass
 
     def _on_language_toggle(self):

@@ -18,6 +18,8 @@
   <string key="normal_map_gl">OpenGL (Y-)</string>
   <string key="save_intermediates">中間ファイルを保存</string>
   <string key="output_resolution_label">出力解像度:</string>
+  <string key="output_dir_label">出力先フォルダ:</string>
+  <string key="select_output_dir">出力先フォルダを選択</string>
   <string key="show_input_preview">入力プレビューを表示</string>
   <string key="generate_button">ノーマルマップ生成</string>
   <string key="realtime_preview_title">リアルタイムプレビュー (512x512 処理)</string>

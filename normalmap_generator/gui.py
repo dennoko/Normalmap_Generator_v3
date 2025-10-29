@@ -43,8 +43,10 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         # build UI
         self._build_widgets()
 
-        # enable drag-and-drop
+        # enable drag-and-drop (register drop target then bind)
         try:
+            # register interest in file drops
+            self.drop_target_register(DND_FILES)
             self.dnd_bind("<<Drop>>", self.on_drop)
         except Exception:
             # tkinterdnd2 may behave differently on some platforms; not fatal

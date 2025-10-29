@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string key="input_file_label">入力ファイル:</string>
+  <string key="browse_button">参照</string>
+  <string key="basic_settings">基本設定</string>
+  <string key="slope_shape">斜面の形状:</string>
+  <string key="radio_line">直線</string>
+  <string key="radio_curve1">曲線1</string>
+  <string key="radio_curve2">曲線2</string>
+  <string key="radius_label">半径:</string>
+  <string key="strength_label">強度:</string>
+  <string key="invert_slope">斜面生成方向を反転</string>
+  <string key="disable_blur">斜面生成を無効化</string>
+  <string key="overwrite_label">同名のファイルがある場合上書きして保存</string>
+  <string key="advanced_settings">詳細設定</string>
+  <string key="normal_map_type">ノーマルマップタイプ:</string>
+  <string key="normal_map_dx">DirectX (Y+)</string>
+  <string key="normal_map_gl">OpenGL (Y-)</string>
+  <string key="save_intermediates">中間ファイルを保存</string>
+  <string key="output_resolution_label">出力解像度:</string>
+  <string key="show_input_preview">入力プレビューを表示</string>
+  <string key="generate_button">ノーマルマップ生成</string>
+  <string key="realtime_preview_title">リアルタイムプレビュー (512x512 処理)</string>
+  <string key="preview_placeholder">パラメータ変更後に自動生成</string>
+  <string key="input_preview_title">入力画像プレビュー</string>
+  <string key="input_preview_empty">画像が読み込まれていません</string>
+  <string key="status_idle">ステータス: 待機中</string>
+  <string key="filetype_png">PNG画像</string>
+  <string key="filetype_all">すべてのファイル</string>
+  <string key="invalid_file">無効なファイル</string>
+  <string key="invalid_file_message">PNGまたはJPEGファイルのみ受け付けています。</string>
+  <string key="jpeg_to_png_error">JPEGからPNGへの変換エラー: {error}</string>
+  <string key="image_load_error">画像読み込みエラー: {error}</string>
+  <string key="validation_error_title">入力エラー</string>
+  <string key="radius_invalid">半径は正の整数である必要があります。</string>
+  <string key="strength_invalid">強度は正の数である必要があります。</string>
+  <string key="number_invalid">無効な数値が入力されています。</string>
+  <string key="warning_title">警告</string>
+  <string key="no_input_file_warning">入力ファイルが選択されていません。</string>
+  <string key="processing_status">処理中...</string>
+  <string key="saved_message_prefix">ノーマルマップを保存しました: {path}</string>
+  <string key="saved_dialog_title">完了</string>
+  <string key="saved_dialog_message">ノーマルマップを保存しました:
+{path}</string>
+  <string key="preview_error">リアルタイムプレビューエラー: {error}</string>
+  <string key="preview_update_failed">プレビュー更新失敗: {error}</string>
+  <string key="error_title">エラー</string>
+  <string key="enable_english_mode">Enable English mode</string>
+</resources>

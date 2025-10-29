@@ -11,6 +11,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 
 from .processor import MaskToNormalMap
 from .types import ProfileType, NormalMapType
+from . import i18n
 import tempfile
 
 
@@ -21,154 +22,243 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.bold_font = ("Meiryo UI", 14, "bold")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
-        # Ensure the base Tk window background matches the dark theme (avoid white root bg)
         try:
-            # palette A: root background
             self.configure(bg="#0F1115")
         except Exception:
             pass
         self.title("Normalmap Generator")
         self.geometry("900x700")
         self.minsize(800, 600)
+
+        # state
         self.input_file_path = ""
         self.processor = MaskToNormalMap()
         self.preview_img = None
-        self.output_img = None
         self.preview_normal_img = None
         self._preview_thread = None
         self._preview_cancel_flag = False
         self._preview_pending_after = None
         self._last_preview_params = None
+
+        # build UI
         self._build_widgets()
-        self.drop_target_register(DND_FILES)
-        self.dnd_bind("<<Drop>>", self.on_drop)
+
+        # enable drag-and-drop
+        try:
+            self.dnd_bind("<<Drop>>", self.on_drop)
+        except Exception:
+            # tkinterdnd2 may behave differently on some platforms; not fatal
+            pass
 
     def _build_widgets(self):
-        # top file selector (primary surface)
-        file_frame = ctk.CTkFrame(self, fg_color="#1B1E23")
-        file_frame.pack(fill="x", padx=10, pady=10)
-        ctk.CTkLabel(file_frame, text="入力ファイル:", font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
-        self.file_entry = ctk.CTkEntry(file_frame, width=400, font=self.default_font, fg_color="#24262C", text_color="#E6EEF8")
+        # Top: file selector
+        self.file_frame = ctk.CTkFrame(self, fg_color="#1B1E23")
+        self.file_frame.pack(fill="x", padx=10, pady=10)
+        self.file_label = ctk.CTkLabel(self.file_frame, text=i18n.get('input_file_label'), font=self.default_font, text_color="#E6EEF8")
+        self.file_label.pack(side="left", padx=5)
+        self.file_entry = ctk.CTkEntry(self.file_frame, width=400, font=self.default_font, fg_color="#24262C", text_color="#E6EEF8")
         self.file_entry.pack(side="left", padx=5, fill="x", expand=True)
-        ctk.CTkButton(file_frame, text="参照", font=self.default_font, command=self.browse_file, fg_color="#4AA3FF", hover_color="#3A8EE6").pack(side="left", padx=5)
+        self.browse_button = ctk.CTkButton(self.file_frame, text=i18n.get('browse_button'), font=self.default_font, command=self.browse_file, fg_color="#4AA3FF", hover_color="#3A8EE6")
+        self.browse_button.pack(side="left", padx=5)
 
-        center = ctk.CTkFrame(self)
-        center.pack(fill="both", expand=True, padx=10, pady=10)
-        settings = ctk.CTkFrame(center, fg_color="#1B1E23")
-        settings.pack(side="left", fill="y", padx=10, pady=10)
+        # Center area: settings (left) + preview (right)
+        self.center = ctk.CTkFrame(self, fg_color="#0F1115")
+        self.center.pack(fill="both", expand=True, padx=10, pady=10)
 
-        basic = ctk.CTkFrame(settings, fg_color="#24262C")
-        basic.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(basic, text="基本設定", font=self.bold_font, text_color="#E6EEF8").pack(anchor="w", padx=5, pady=5)
-        pf = ctk.CTkFrame(basic, fg_color="#24262C")
+        # Settings column
+        self.settings = ctk.CTkFrame(self.center, fg_color="#1B1E23")
+        self.settings.pack(side="left", fill="y", padx=10, pady=10)
+
+        # Basic settings
+        self.basic = ctk.CTkFrame(self.settings, fg_color="#24262C")
+        self.basic.pack(fill="x", padx=5, pady=5)
+        self.basic_label = ctk.CTkLabel(self.basic, text=i18n.get('basic_settings'), font=self.bold_font, text_color="#E6EEF8")
+        self.basic_label.pack(anchor="w", padx=5, pady=5)
+
+        # slope/profile
+        pf = ctk.CTkFrame(self.basic, fg_color="#24262C")
         pf.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(pf, text="斜面の形状:", font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.slope_label = ctk.CTkLabel(pf, text=i18n.get('slope_shape'), font=self.default_font, text_color="#E6EEF8")
+        self.slope_label.pack(side="left", padx=5)
         self.profile_var = ctk.IntVar(value=1)
-        for text, val in (("直線", 1), ("曲線1", 2), ("曲線2", 3)):
-            ctk.CTkRadioButton(pf, text=text, variable=self.profile_var, value=val, font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
-        self.profile_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.profile_radio_frames = []
+        for text, val in ((i18n.get('linear_profile'), 1), (i18n.get('curve1_profile'), 2), (i18n.get('curve2_profile'), 3)):
+            rb = ctk.CTkRadioButton(pf, text=text, variable=self.profile_var, value=val, font=self.default_font, text_color="#E6EEF8", command=self._on_param_change)
+            rb.pack(side="left", padx=5)
+            self.profile_radio_frames.append(rb)
 
-        rf = ctk.CTkFrame(basic, fg_color="#24262C")
+        # radius
+        rf = ctk.CTkFrame(self.basic, fg_color="#24262C")
         rf.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(rf, text="半径:", font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.radius_label = ctk.CTkLabel(rf, text=i18n.get('radius_label'), font=self.default_font, text_color="#E6EEF8")
+        self.radius_label.pack(side="left", padx=5)
         self.radius_var = ctk.StringVar(value="15")
         self.radius_entry = ctk.CTkEntry(rf, width=70, font=self.default_font, textvariable=self.radius_var, fg_color="#24262C", text_color="#E6EEF8")
         self.radius_entry.pack(side="left", padx=5)
         for ev in ("<KeyRelease>", "<FocusOut>", "<Return>"):
             self.radius_entry.bind(ev, self._on_param_change)
 
-        sf = ctk.CTkFrame(basic, fg_color="#24262C")
+        # strength
+        sf = ctk.CTkFrame(self.basic, fg_color="#24262C")
         sf.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(sf, text="強度:", font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.strength_label = ctk.CTkLabel(sf, text=i18n.get('strength_label'), font=self.default_font, text_color="#E6EEF8")
+        self.strength_label.pack(side="left", padx=5)
         self.strength_var = ctk.StringVar(value="1.0")
         self.strength_entry = ctk.CTkEntry(sf, width=70, font=self.default_font, textvariable=self.strength_var, fg_color="#24262C", text_color="#E6EEF8")
         self.strength_entry.pack(side="left", padx=5)
         for ev in ("<KeyRelease>", "<FocusOut>", "<Return>"):
             self.strength_entry.bind(ev, self._on_param_change)
 
-        invf = ctk.CTkFrame(basic, fg_color="#24262C")
+        # inversion checkbox
+        invf = ctk.CTkFrame(self.basic, fg_color="#24262C")
         invf.pack(fill="x", padx=5, pady=5)
         self.invert_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(invf, text="斜面生成方向を反転", font=self.default_font, variable=self.invert_var, text_color="#E6EEF8").pack(side="left", padx=5)
-        self.invert_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.invert_cb = ctk.CTkCheckBox(invf, text=i18n.get('invert_slope'), font=self.default_font, variable=self.invert_var, text_color="#E6EEF8", command=self._on_param_change)
+        self.invert_cb.pack(side="left", padx=5)
 
-        blf = ctk.CTkFrame(basic, fg_color="#24262C")
+        # disable blur
+        blf = ctk.CTkFrame(self.basic, fg_color="#24262C")
         blf.pack(fill="x", padx=5, pady=5)
         self.disable_blur_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(blf, text="斜面生成を無効化", font=self.default_font, variable=self.disable_blur_var, text_color="#E6EEF8").pack(side="left", padx=5)
-        self.disable_blur_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.disable_blur_cb = ctk.CTkCheckBox(blf, text=i18n.get('disable_blur'), font=self.default_font, variable=self.disable_blur_var, text_color="#E6EEF8", command=self._on_param_change)
+        self.disable_blur_cb.pack(side="left", padx=5)
 
-        owf = ctk.CTkFrame(basic, fg_color="#24262C")
+        # overwrite
+        owf = ctk.CTkFrame(self.basic, fg_color="#24262C")
         owf.pack(fill="x", padx=5, pady=5)
-        self.overwrite_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(owf, text="同名のファイルがある場合上書きして保存", font=self.default_font, variable=self.overwrite_var, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.overwrite_var = ctk.BooleanVar(value=False)
+        self.overwrite_cb = ctk.CTkCheckBox(owf, text=i18n.get('overwrite_label'), font=self.default_font, variable=self.overwrite_var, text_color="#E6EEF8")
+        self.overwrite_cb.pack(side="left", padx=5)
 
-        adv = ctk.CTkFrame(settings, fg_color="#1B1E23")
+        # Advanced settings
+        adv = ctk.CTkFrame(self.settings, fg_color="#1B1E23")
         adv.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(adv, text="詳細設定", font=self.bold_font, text_color="#E6EEF8").pack(anchor="w", padx=5, pady=5)
+        self.adv_label = ctk.CTkLabel(adv, text=i18n.get('advanced_settings'), font=self.bold_font, text_color="#E6EEF8")
+        self.adv_label.pack(anchor="w", padx=5, pady=5)
 
         ntf = ctk.CTkFrame(adv, fg_color="#24262C")
         ntf.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(ntf, text="ノーマルマップタイプ:", font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.normal_map_type_label = ctk.CTkLabel(ntf, text=i18n.get('normal_map_type'), font=self.default_font, text_color="#E6EEF8")
+        self.normal_map_type_label.pack(side="left", padx=5)
         self.normal_type_var = ctk.IntVar(value=1)
-        ctk.CTkRadioButton(ntf, text="DirectX (Y+)", variable=self.normal_type_var, value=1, font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
-        ctk.CTkRadioButton(ntf, text="OpenGL (Y-)", variable=self.normal_type_var, value=2, font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
-        self.normal_type_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.normal_dx = ctk.CTkRadioButton(ntf, text=i18n.get('normal_map_dx'), variable=self.normal_type_var, value=1, font=self.default_font, text_color="#E6EEF8")
+        self.normal_dx.pack(side="left", padx=5)
+        self.normal_gl = ctk.CTkRadioButton(ntf, text=i18n.get('normal_map_gl'), variable=self.normal_type_var, value=2, font=self.default_font, text_color="#E6EEF8")
+        self.normal_gl.pack(side="left", padx=5)
 
         itf = ctk.CTkFrame(adv, fg_color="#24262C")
         itf.pack(fill="x", padx=5, pady=5)
         self.intermediate_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(itf, text="中間ファイルを保存", font=self.default_font, variable=self.intermediate_var, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.intermediate_cb = ctk.CTkCheckBox(itf, text=i18n.get('save_intermediates'), font=self.default_font, variable=self.intermediate_var, text_color="#E6EEF8")
+        self.intermediate_cb.pack(side="left", padx=5)
 
         # Output resolution selection
         rf = ctk.CTkFrame(adv, fg_color="#24262C")
         rf.pack(fill="x", padx=5, pady=5)
-        ctk.CTkLabel(rf, text="出力解像度:", font=self.default_font, text_color="#E6EEF8").pack(side="left", padx=5)
+        self.output_res_label = ctk.CTkLabel(rf, text=i18n.get('output_resolution_label'), font=self.default_font, text_color="#E6EEF8")
+        self.output_res_label.pack(side="left", padx=5)
         self.output_resolution_var = ctk.StringVar(value="2048")
         self.res_option = ctk.CTkOptionMenu(rf, values=["256", "512", "1024", "2048", "4096"], variable=self.output_resolution_var, font=self.default_font)
         self.res_option.pack(side="left", padx=5)
 
-        # Input preview visibility toggle (default: hidden)
+        # Input preview toggle
         ipf = ctk.CTkFrame(adv, fg_color="#24262C")
         ipf.pack(fill="x", padx=5, pady=5)
         self.show_input_preview_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(ipf, text="入力プレビューを表示", font=self.default_font, variable=self.show_input_preview_var, text_color="#E6EEF8").pack(side="left", padx=5)
-        # when toggled, refresh the input preview display
-        self.show_input_preview_var.trace_add('write', lambda *a: self._refresh_input_preview())
+        self.show_input_preview_cb = ctk.CTkCheckBox(ipf, text=i18n.get('show_input_preview'), font=self.default_font, variable=self.show_input_preview_var, text_color="#E6EEF8", command=self._refresh_input_preview)
+        self.show_input_preview_cb.pack(side="left", padx=5)
 
-        # Action button
-        self.execute_button = ctk.CTkButton(settings, text="ノーマルマップ生成", font=self.bold_font, height=40, command=self.generate_normal_map, fg_color="#4AA3FF", hover_color="#3A8EE6")
-        self.execute_button.pack(fill="x", padx=10, pady=20)
+        # Language toggle at bottom of settings
+        self.langf = ctk.CTkFrame(self.settings, fg_color="#24262C")
+        self.langf.pack(fill="x", padx=5, pady=(10, 10))
+        self.enable_english_var = ctk.BooleanVar(value=(i18n.current_language() == 'en'))
+        self.lang_toggle = ctk.CTkCheckBox(self.langf, text=i18n.get('enable_english_mode'), font=self.default_font, variable=self.enable_english_var, text_color="#E6EEF8", command=self._on_language_toggle)
+        self.lang_toggle.pack(side="left", padx=5)
 
-        # preview area uses primary surface color
-        preview = ctk.CTkScrollableFrame(center, fg_color="#1B1E23")
-        preview.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        ctk.CTkLabel(preview, text="リアルタイムプレビュー (512x512 処理)", font=self.default_font, text_color="#E6EEF8").pack(anchor="center", pady=5)
-        self.rt_preview = ctk.CTkLabel(preview, text="パラメータ変更後に自動生成", font=self.default_font, text_color="#E6EEF8")
+        # Execute button
+        self.execute_button = ctk.CTkButton(self.settings, text=i18n.get('generate_button'), font=self.bold_font, height=40, command=self.generate_normal_map, fg_color="#4AA3FF", hover_color="#3A8EE6")
+        self.execute_button.pack(fill="x", padx=5, pady=(10, 0))
+
+        # Preview column
+        self.preview = ctk.CTkScrollableFrame(self.center, fg_color="#1B1E23")
+        self.preview.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        self.realtime_label = ctk.CTkLabel(self.preview, text=i18n.get('realtime_preview_title'), font=self.default_font, text_color="#E6EEF8")
+        self.realtime_label.pack(anchor="center", pady=5)
+        self.rt_preview = ctk.CTkLabel(self.preview, text=i18n.get('realtime_preview_placeholder'), font=self.default_font, text_color="#E6EEF8")
         self.rt_preview.pack(pady=10)
-        # Input preview section (created but not packed; visibility controlled by toggle)
-        # Use a containing frame so we can pack_forget the whole section easily
-        # input preview container uses secondary panel color
-        self.input_section = ctk.CTkFrame(preview, fg_color="#24262C")
-        self.input_preview_label = ctk.CTkLabel(self.input_section, text="入力画像プレビュー", font=self.default_font, text_color="#E6EEF8")
+
+        # Input preview section (hidden by default)
+        self.input_section = ctk.CTkFrame(self.preview, fg_color="#24262C")
+        self.input_preview_label = ctk.CTkLabel(self.input_section, text=i18n.get('input_preview_label'), font=self.default_font, text_color="#E6EEF8")
         self.input_preview_label.pack(anchor="center", pady=(2, 2))
-        self.input_preview = ctk.CTkLabel(self.input_section, text="画像が読み込まれていません", font=self.default_font, text_color="#E6EEF8")
+        self.input_preview = ctk.CTkLabel(self.input_section, text=i18n.get('no_image_loaded'), font=self.default_font, text_color="#E6EEF8")
         self.input_preview.pack(pady=5)
 
+        # Status bar
         status = ctk.CTkFrame(self, height=30, fg_color="#1B1E23")
         status.pack(fill="x", padx=10, pady=5)
-        self.status_label = ctk.CTkLabel(status, text="ステータス: 待機中", font=self.default_font, text_color="#E6EEF8")
+        self.status_label = ctk.CTkLabel(status, text=i18n.get('status_waiting'), font=self.default_font, text_color="#E6EEF8")
         self.status_label.pack(side="left", padx=10)
-        # Ensure initial visibility matches the toggle (show_input_preview_var defaults to False)
-        # _refresh_input_preview will pack or hide the input_section as needed
+
+        # Wire preview scheduling to parameter changes
+        self.profile_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.radius_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.strength_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.invert_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.disable_blur_var.trace_add('write', lambda *a: self._schedule_preview())
+
+        # Apply localized texts once more to ensure dynamic widgets show the right strings
+        self._apply_localization()
+
+        # Ensure initial visibility for input preview
         self._refresh_input_preview()
 
-    
+    def _apply_localization(self):
+        # Update text of widgets from i18n
+        try:
+            self.file_label.configure(text=i18n.get('input_file_label'))
+            self.browse_button.configure(text=i18n.get('browse_button'))
+            self.basic_label.configure(text=i18n.get('basic_settings'))
+            self.slope_label.configure(text=i18n.get('slope_shape'))
+            # update profile radios
+            texts = (i18n.get('linear_profile'), i18n.get('curve1_profile'), i18n.get('curve2_profile'))
+            for rb, t in zip(self.profile_radio_frames, texts):
+                rb.configure(text=t)
+            self.radius_label.configure(text=i18n.get('radius_label'))
+            self.strength_label.configure(text=i18n.get('strength_label'))
+            self.invert_cb.configure(text=i18n.get('invert_slope'))
+            self.disable_blur_cb.configure(text=i18n.get('disable_blur'))
+            self.overwrite_cb.configure(text=i18n.get('overwrite_label'))
+            self.adv_label.configure(text=i18n.get('advanced_settings'))
+            self.normal_map_type_label.configure(text=i18n.get('normal_map_type'))
+            self.normal_dx.configure(text=i18n.get('normal_map_dx'))
+            self.normal_gl.configure(text=i18n.get('normal_map_gl'))
+            self.intermediate_cb.configure(text=i18n.get('save_intermediates'))
+            self.output_res_label.configure(text=i18n.get('output_resolution_label'))
+            self.show_input_preview_cb.configure(text=i18n.get('show_input_preview'))
+            self.execute_button.configure(text=i18n.get('generate_button'))
+            self.realtime_label.configure(text=i18n.get('realtime_preview_title'))
+            self.rt_preview.configure(text=i18n.get('realtime_preview_placeholder'))
+            self.input_preview_label.configure(text=i18n.get('input_preview_label'))
+            self.input_preview.configure(text=i18n.get('no_image_loaded'))
+            self.status_label.configure(text=i18n.get('status_waiting'))
+            self.lang_toggle.configure(text=i18n.get('enable_english_mode'))
+        except Exception:
+            # Best-effort localization; ignore individual failures
+            pass
+
+    def _on_language_toggle(self):
+        if self.enable_english_var.get():
+            i18n.set_language('en')
+        else:
+            i18n.set_language('ja')
+        self._apply_localization()
 
     def _on_param_change(self, event=None):
         self._schedule_preview()
 
     def _schedule_preview(self):
+        # schedule a preview generation after a short debounce
         if not self.input_file_path:
             return
         if self._preview_pending_after is not None:
@@ -182,7 +272,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             strength = float(self.strength_var.get())
             if radius <= 0 or strength <= 0:
                 return
-        except ValueError:
+        except Exception:
             return
         params = (
             self.input_file_path,
@@ -196,11 +286,10 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         if params == self._last_preview_params:
             return
         self._last_preview_params = params
-        self._preview_cancel_flag = True
         self._preview_cancel_flag = False
         self._preview_thread = threading.Thread(target=self._generate_preview, args=params, daemon=True)
         self._preview_thread.start()
-        self.update_status("リアルタイムプレビュー生成中...")
+        self.update_status(i18n.get('status_generating_preview'))
 
     def _generate_preview(self, file_path, profile, radius, strength, ntype, invert_mask, disable_blur):
         try:
@@ -225,7 +314,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 return
             self.after(0, lambda nm=normal_map: self._update_rt_preview(nm))
         except Exception as e:
-            self.after(0, lambda: self.update_status(f"リアルタイムプレビューエラー: {e}"))
+            self.after(0, lambda: self.update_status(f"{i18n.get('preview_error')}: {e}"))
 
     def _update_rt_preview(self, normal_map):
         try:
@@ -234,13 +323,13 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             pil_image.thumbnail((300, 300), Image.LANCZOS)
             self.preview_normal_img = ImageTk.PhotoImage(pil_image)
             self.rt_preview.configure(image=self.preview_normal_img, text="")
-            self.update_status("リアルタイムプレビュー更新済み")
+            self.update_status(i18n.get('status_preview_updated'))
         except Exception as e:
-            self.update_status(f"プレビュー更新失敗: {e}")
+            self.update_status(f"{i18n.get('preview_update_failed')}: {e}")
 
-    # ===== 既存処理 =====
+    # file operations
     def browse_file(self):
-        file_path = filedialog.askopenfilename(title="マスク画像を選択", filetypes=[("PNG画像", "*.png"), ("すべてのファイル", "*.*")])
+        file_path = filedialog.askopenfilename(title=i18n.get('select_mask_file'), filetypes=[("PNG画像", "*.png"), ("すべてのファイル", "*.*")])
         if file_path:
             self.set_input_file(file_path)
 
@@ -249,17 +338,19 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         if file_path.startswith('{') and file_path.endswith('}'):
             file_path = file_path.strip('{}')
         if file_path.lower().endswith(('.png', '.jpg', '.jpeg')):
+            # If JPEG, attempt to convert to PNG (processor expects PNG-like masks)
+            if file_path.lower().endswith(('.jpg', '.jpeg')):
+                try:
+                    image = Image.open(file_path)
+                    png_file_path = file_path.rsplit('.', 1)[0] + '.png'
+                    image.save(png_file_path, format='PNG')
+                    file_path = png_file_path
+                except Exception as e:
+                    messagebox.showerror(i18n.get('error_title'), f"{i18n.get('jpeg_convert_error')}: {e}")
+                    return
             self.set_input_file(file_path)
         else:
-            messagebox.showwarning("無効なファイル", "PNGまたはJPEGファイルのみ受け付けています。")
-        if file_path.lower().endswith(('.jpg', '.jpeg')):
-            try:
-                image = Image.open(file_path)
-                png_file_path = file_path.rsplit('.', 1)[0] + '.png'
-                image.save(png_file_path, format='PNG')
-                self.set_input_file(png_file_path)
-            except Exception as e:
-                messagebox.showerror("エラー", f"JPEGからPNGへの変換エラー: {e}")
+            messagebox.showwarning(i18n.get('invalid_file_title'), i18n.get('invalid_file_message'))
 
     def set_input_file(self, file_path):
         self.input_file_path = file_path
@@ -270,19 +361,16 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             image.thumbnail((300, 300), Image.LANCZOS)
             self.preview_img = ImageTk.PhotoImage(image)
             self.input_preview.configure(image=self.preview_img, text="")
-            self.status_label.configure(text=f"ステータス: {os.path.basename(file_path)}を読み込みました")
+            self.status_label.configure(text=f"{i18n.get('status_loaded')}: {os.path.basename(file_path)}")
             self._last_preview_params = None
             self._schedule_preview()
-            # refresh preview display according to current toggle
             self._refresh_input_preview()
         except Exception as e:
-            messagebox.showerror("エラー", f"画像読み込みエラー: {e}")
+            messagebox.showerror(i18n.get('error_title'), f"{i18n.get('image_load_error')}: {e}")
 
     def _refresh_input_preview(self):
-        # Show or hide the input preview section based on the toggle.
         try:
             if not self.input_file_path:
-                # no input: hide
                 try:
                     if self.input_section.winfo_ismapped():
                         self.input_section.pack_forget()
@@ -290,60 +378,63 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                     pass
                 return
             if self.show_input_preview_var.get():
-                # ensure section is packed
                 try:
                     if not self.input_section.winfo_ismapped():
                         self.input_section.pack(anchor="center", pady=5)
                 except Exception:
                     pass
-                image = Image.open(self.input_file_path)
-                image.thumbnail((300, 300), Image.LANCZOS)
-                self.preview_img = ImageTk.PhotoImage(image)
-                self.input_preview.configure(image=self.preview_img, text="")
+                try:
+                    image = Image.open(self.input_file_path)
+                    image.thumbnail((300, 300), Image.LANCZOS)
+                    self.preview_img = ImageTk.PhotoImage(image)
+                    self.input_preview.configure(image=self.preview_img, text="")
+                except Exception as e:
+                    self.input_preview.configure(text=i18n.get('no_image_loaded'))
             else:
-                # hide image section entirely
                 try:
                     if self.input_section.winfo_ismapped():
                         self.input_section.pack_forget()
                 except Exception:
                     pass
         except Exception as e:
-            # If preview fails, hide section and report
             try:
                 if self.input_section.winfo_ismapped():
                     self.input_section.pack_forget()
             except Exception:
                 pass
             self.preview_img = None
-            self.update_status(f"プレビュー読み込み失敗: {e}")
+            self.update_status(f"{i18n.get('preview_load_failed')}: {e}")
 
     def validate_inputs(self):
         try:
             radius = int(self.radius_var.get())
             if radius <= 0:
-                messagebox.showerror("入力エラー", "半径は正の整数である必要があります。")
+                messagebox.showerror(i18n.get('input_error_title'), i18n.get('radius_positive'))
                 return False
             strength = float(self.strength_var.get())
             if strength <= 0:
-                messagebox.showerror("入力エラー", "強度は正の数である必要があります。")
+                messagebox.showerror(i18n.get('input_error_title'), i18n.get('strength_positive'))
                 return False
             return True
         except ValueError:
-            messagebox.showerror("入力エラー", "無効な数値が入力されています。")
+            messagebox.showerror(i18n.get('input_error_title'), i18n.get('invalid_number'))
             return False
 
     def update_status(self, message):
-        self.status_label.configure(text=f"ステータス: {message}")
-        self.update_idletasks()
+        try:
+            self.status_label.configure(text=message)
+            self.update_idletasks()
+        except Exception:
+            pass
 
     def generate_normal_map(self):
         if not self.input_file_path:
-            messagebox.showwarning("警告", "入力ファイルが選択されていません。")
+            messagebox.showwarning(i18n.get('warning_title'), i18n.get('no_input_selected'))
             return
         if not self.validate_inputs():
             return
         self.execute_button.configure(state="disabled")
-        self.update_status("処理中...")
+        self.update_status(i18n.get('status_processing'))
         threading.Thread(target=self._process_normal_map, daemon=True).start()
 
     def _process_normal_map(self):
@@ -368,14 +459,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             try:
                 with Image.open(self.input_file_path) as orig_img:
                     img_w, img_h = orig_img.size
-                    # If user selected a target resolution, compute output width accordingly
                     if selected_res and selected_res > 0:
                         out_w = int(selected_res)
                         out_h = int(round(float(img_h) * (float(out_w) / float(img_w)))) if img_w != 0 else img_h
                     else:
                         out_w, out_h = img_w, img_h
                     scale = float(out_w) / preview_size
-                    # If target size differs from original, create a temporary resized image for processing
                     if out_w != img_w or out_h != img_h:
                         fd, tmp_path = tempfile.mkstemp(suffix=".png")
                         os.close(fd)
@@ -383,11 +472,9 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                         resized.save(tmp_path, format="PNG")
                         tmp_input_path = tmp_path
             except Exception:
-                # fallback: no scaling, use original path
                 scale = 1.0
                 tmp_input_path = None
 
-            # Apply scaling to radius/strength so output visually matches preview
             radius_scaled = max(1, int(round(radius * scale)))
             strength_scaled = float(strength) * float(scale)
             normal_map_type = NormalMapType(self.normal_type_var.get())
@@ -408,28 +495,24 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 disable_blurring=disable_blurring,
                 overwrite_existing=overwrite_existing
             )
-            # cleanup temporary resized input if created
             try:
                 if tmp_input_path and os.path.exists(tmp_input_path):
                     os.remove(tmp_input_path)
             except Exception:
                 pass
-            # Do not attempt to show an output preview widget (removed). Notify completion instead.
             self.after(0, lambda: self._on_process_complete(output_path))
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror("エラー", f"処理エラー: {e}"))
-            self.after(0, lambda: self.update_status("エラーが発生しました"))
+            self.after(0, lambda: messagebox.showerror(i18n.get('error_title'), f"{i18n.get('processing_error')}: {e}"))
+            self.after(0, lambda: self.update_status(i18n.get('status_error')))
         finally:
             self.after(0, lambda: self.execute_button.configure(state="normal"))
 
     def _on_process_complete(self, output_path):
-        # Called on the main thread after processing finishes.
         try:
-            self.update_status(f"ノーマルマップを保存しました: {output_path}")
-            messagebox.showinfo("完了", f"ノーマルマップを保存しました:\n{output_path}")
+            self.update_status(f"{i18n.get('status_saved')}: {output_path}")
+            messagebox.showinfo(i18n.get('done_title'), f"{i18n.get('saved_message')}:\n{output_path}")
         except Exception as e:
-            # If UI notification fails, at least set status
-            self.update_status(f"保存完了 (通知失敗): {e}")
+            self.update_status(f"{i18n.get('saved_message')} (notify failed): {e}")
 
 
 __all__ = ["NormalMapGeneratorApp"]

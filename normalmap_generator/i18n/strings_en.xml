@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string key="input_file_label">Input file:</string>
+  <string key="browse_button">Browse</string>
+  <string key="basic_settings">Basic settings</string>
+  <string key="slope_shape">Slope shape:</string>
+  <string key="radio_line">Line</string>
+  <string key="radio_curve1">Curve 1</string>
+  <string key="radio_curve2">Curve 2</string>
+  <string key="radius_label">Radius:</string>
+  <string key="strength_label">Strength:</string>
+  <string key="invert_slope">Invert slope direction</string>
+  <string key="disable_blur">Disable slope blurring</string>
+  <string key="overwrite_label">Overwrite if file exists</string>
+  <string key="advanced_settings">Advanced settings</string>
+  <string key="normal_map_type">Normal map type:</string>
+  <string key="normal_map_dx">DirectX (Y+)</string>
+  <string key="normal_map_gl">OpenGL (Y-)</string>
+  <string key="save_intermediates">Save intermediate files</string>
+  <string key="output_resolution_label">Output resolution:</string>
+  <string key="show_input_preview">Show input preview</string>
+  <string key="generate_button">Generate normal map</string>
+  <string key="realtime_preview_title">Realtime preview (512x512 processing)</string>
+  <string key="preview_placeholder">Generated automatically after parameter change</string>
+  <string key="input_preview_title">Input image preview</string>
+  <string key="input_preview_empty">No image loaded</string>
+  <string key="status_idle">Status: Idle</string>
+  <string key="filetype_png">PNG image</string>
+  <string key="filetype_all">All files</string>
+  <string key="invalid_file">Invalid file</string>
+  <string key="invalid_file_message">Only PNG or JPEG files are accepted.</string>
+  <string key="jpeg_to_png_error">JPEG to PNG conversion error: {error}</string>
+  <string key="image_load_error">Image load error: {error}</string>
+  <string key="validation_error_title">Input error</string>
+  <string key="radius_invalid">Radius must be a positive integer.</string>
+  <string key="strength_invalid">Strength must be a positive number.</string>
+  <string key="number_invalid">An invalid number was entered.</string>
+  <string key="warning_title">Warning</string>
+  <string key="no_input_file_warning">No input file selected.</string>
+  <string key="processing_status">Processing...</string>
+  <string key="saved_message_prefix">Saved normal map: {path}</string>
+  <string key="saved_dialog_title">Done</string>
+  <string key="saved_dialog_message">Saved normal map:
+{path}</string>
+  <string key="preview_error">Realtime preview error: {error}</string>
+  <string key="preview_update_failed">Preview update failed: {error}</string>
+  <string key="error_title">Error</string>
+  <string key="enable_english_mode">Enable English mode</string>
+</resources>

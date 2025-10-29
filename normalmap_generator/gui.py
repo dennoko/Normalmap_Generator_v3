@@ -117,19 +117,15 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
 
         preview = ctk.CTkScrollableFrame(center)
         preview.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        ctk.CTkLabel(preview, text="入力画像プレビュー", font=self.default_font).pack(anchor="center", pady=5)
-        self.input_preview = ctk.CTkLabel(preview, text="画像が読み込まれていません", font=self.default_font)
-        self.input_preview.pack(pady=10)
-        ctk.CTkLabel(preview, text="出力ノーマルマッププレビュー", font=self.default_font).pack(anchor="center", pady=5)
-        self.output_preview = ctk.CTkLabel(preview, text="ノーマルマップが生成されていません", font=self.default_font)
-        self.output_preview.pack(pady=10)
         ctk.CTkLabel(preview, text="リアルタイムプレビュー (512x512 処理)", font=self.default_font).pack(anchor="center", pady=5)
         self.rt_preview = ctk.CTkLabel(preview, text="パラメータ変更後に自動生成", font=self.default_font)
         self.rt_preview.pack(pady=10)
         status = ctk.CTkFrame(self, height=30)
         status.pack(fill="x", padx=10, pady=5)
         self.status_label = ctk.CTkLabel(status, text="ステータス: 待機中", font=self.default_font)
-        self.status_label.pack(side="left", padx=10)
+        ctk.CTkLabel(preview, text="入力画像プレビュー", font=self.default_font).pack(anchor="center", pady=5)
+        self.input_preview = ctk.CTkLabel(preview, text="画像が読み込まれていません", font=self.default_font)
+        self.input_preview.pack(pady=10)
 
     def _on_param_change(self, event=None):
         self._schedule_preview()
@@ -279,23 +275,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             base_name = os.path.basename(self.input_file_path).split('.')[0]
             output_path = os.path.join(output_dir, f"{base_name}_normal.png")
             profile_type = ProfileType(self.profile_var.get())
-            # Read user-specified radius and strength and apply scale correction so that
-            # the saved full-resolution output visually matches the 512px preview.
             radius = int(self.radius_var.get())
             strength = float(self.strength_var.get())
-            preview_size = 512
-            scale = 1.0
-            try:
-                # determine scale factor between preview (512) and actual image width
-                with Image.open(self.input_file_path) as _img:
-                    img_w, img_h = _img.size
-                scale = max(1.0, img_w / float(preview_size))
-                scaled_radius = max(1, int(round(radius * scale)))
-            except Exception:
-                # fallback: no scaling
-                scaled_radius = radius
-            # scale strength proportionally so that gradient amplitudes match preview
-            scaled_strength = strength * float(scale)
             normal_map_type = NormalMapType(self.normal_type_var.get())
             save_intermediates = self.intermediate_var.get()
             invert_mask = self.invert_var.get()
@@ -305,31 +286,30 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 self.input_file_path,
                 output_path,
                 profile_type=profile_type,
-                radius=scaled_radius,
-                strength=scaled_strength,
+                radius=radius,
+                strength=strength,
                 normal_map_type=normal_map_type,
                 save_intermediates=save_intermediates,
                 invert_mask=invert_mask,
                 disable_blurring=disable_blurring,
                 overwrite_existing=overwrite_existing
             )
-            self.after(0, lambda: self._update_output_preview(normal_map, output_path))
+            # Do not attempt to show an output preview widget (removed). Notify completion instead.
+            self.after(0, lambda: self._on_process_complete(output_path))
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("エラー", f"処理エラー: {e}"))
             self.after(0, lambda: self.update_status("エラーが発生しました"))
         finally:
             self.after(0, lambda: self.execute_button.configure(state="normal"))
 
-    def _update_output_preview(self, normal_map, output_path):
+    def _on_process_complete(self, output_path):
+        # Called on the main thread after processing finishes.
         try:
-            rgb_normal_map = cv2.cvtColor(normal_map, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(rgb_normal_map)
-            pil_image.thumbnail((300, 300), Image.LANCZOS)
-            self.output_img = ImageTk.PhotoImage(pil_image)
-            self.output_preview.configure(image=self.output_img, text="")
             self.update_status(f"ノーマルマップを保存しました: {output_path}")
+            messagebox.showinfo("完了", f"ノーマルマップを保存しました:\n{output_path}")
         except Exception as e:
-            messagebox.showerror("エラー", f"プレビュー表示エラー: {e}")
+            # If UI notification fails, at least set status
+            self.update_status(f"保存完了 (通知失敗): {e}")
 
 
 __all__ = ["NormalMapGeneratorApp"]

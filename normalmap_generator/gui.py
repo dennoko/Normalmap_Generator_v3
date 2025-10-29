@@ -277,6 +277,17 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             profile_type = ProfileType(self.profile_var.get())
             radius = int(self.radius_var.get())
             strength = float(self.strength_var.get())
+            # Apply scale correction so saved output matches the 512px preview appearance.
+            preview_size = 512.0
+            try:
+                with Image.open(self.input_file_path) as _img:
+                    img_w, img_h = _img.size
+                scale = float(img_w) / preview_size
+            except Exception:
+                scale = 1.0
+            # Allow scale < 1.0 (smaller outputs) so appearance matches preview regardless of size.
+            radius_scaled = max(1, int(round(radius * scale)))
+            strength_scaled = float(strength) * float(scale)
             normal_map_type = NormalMapType(self.normal_type_var.get())
             save_intermediates = self.intermediate_var.get()
             invert_mask = self.invert_var.get()
@@ -286,8 +297,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 self.input_file_path,
                 output_path,
                 profile_type=profile_type,
-                radius=radius,
-                strength=strength,
+                radius=radius_scaled,
+                strength=strength_scaled,
                 normal_map_type=normal_map_type,
                 save_intermediates=save_intermediates,
                 invert_mask=invert_mask,

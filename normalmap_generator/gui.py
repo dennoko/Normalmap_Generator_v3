@@ -117,7 +117,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         rf = ctk.CTkFrame(adv)
         rf.pack(fill="x", padx=5, pady=5)
         ctk.CTkLabel(rf, text="出力解像度:", font=self.default_font).pack(side="left", padx=5)
-        self.output_resolution_var = ctk.StringVar(value="512")
+        self.output_resolution_var = ctk.StringVar(value="2048")
         self.res_option = ctk.CTkOptionMenu(rf, values=["256", "512", "1024", "2048", "4096"], variable=self.output_resolution_var, font=self.default_font)
         self.res_option.pack(side="left", padx=5)
 
@@ -138,18 +138,23 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         ctk.CTkLabel(preview, text="リアルタイムプレビュー (512x512 処理)", font=self.default_font).pack(anchor="center", pady=5)
         self.rt_preview = ctk.CTkLabel(preview, text="パラメータ変更後に自動生成", font=self.default_font)
         self.rt_preview.pack(pady=10)
+        # Input preview section (created but not packed; visibility controlled by toggle)
+        # Use a containing frame so we can pack_forget the whole section easily
+        self.input_section = ctk.CTkFrame(preview)
+        self.input_preview_label = ctk.CTkLabel(self.input_section, text="入力画像プレビュー", font=self.default_font)
+        self.input_preview_label.pack(anchor="center", pady=(2, 2))
+        self.input_preview = ctk.CTkLabel(self.input_section, text="画像が読み込まれていません", font=self.default_font)
+        self.input_preview.pack(pady=5)
+
         status = ctk.CTkFrame(self, height=30)
         status.pack(fill="x", padx=10, pady=5)
         self.status_label = ctk.CTkLabel(status, text="ステータス: 待機中", font=self.default_font)
         self.status_label.pack(side="left", padx=10)
+        # Ensure initial visibility matches the toggle (show_input_preview_var defaults to False)
+        # _refresh_input_preview will pack or hide the input_section as needed
+        self._refresh_input_preview()
 
-        # Input preview section (can be hidden/shown)
-        self.input_section = ctk.CTkFrame(preview)
-        self.input_section.pack(anchor="center", pady=5)
-        self.input_preview_label = ctk.CTkLabel(self.input_section, text="入力画像プレビュー", font=self.default_font)
-        self.input_preview_label.pack(anchor="center", pady=2)
-        self.input_preview = ctk.CTkLabel(self.input_section, text="画像が読み込まれていません", font=self.default_font)
-        self.input_preview.pack(pady=5)
+    
 
     def _on_param_change(self, event=None):
         self._schedule_preview()

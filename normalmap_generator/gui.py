@@ -21,6 +21,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.bold_font = ("Meiryo UI", 14, "bold")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
+        # Ensure the base Tk window background matches the dark theme (avoid white root bg)
+        try:
+            self.configure(bg="#2b2b2b")
+        except Exception:
+            # fallback: ignore if configure not supported
+            pass
         self.title("Normalmap Generator")
         self.geometry("900x700")
         self.minsize(800, 600)
@@ -133,14 +139,14 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.execute_button = ctk.CTkButton(settings, text="ノーマルマップ生成", font=self.bold_font, height=40, command=self.generate_normal_map)
         self.execute_button.pack(fill="x", padx=10, pady=20)
 
-        preview = ctk.CTkScrollableFrame(center)
+        preview = ctk.CTkScrollableFrame(center, fg_color="#2b2b2b")
         preview.pack(side="right", fill="both", expand=True, padx=10, pady=10)
         ctk.CTkLabel(preview, text="リアルタイムプレビュー (512x512 処理)", font=self.default_font).pack(anchor="center", pady=5)
         self.rt_preview = ctk.CTkLabel(preview, text="パラメータ変更後に自動生成", font=self.default_font)
         self.rt_preview.pack(pady=10)
         # Input preview section (created but not packed; visibility controlled by toggle)
         # Use a containing frame so we can pack_forget the whole section easily
-        self.input_section = ctk.CTkFrame(preview)
+        self.input_section = ctk.CTkFrame(preview, fg_color="#2b2b2b")
         self.input_preview_label = ctk.CTkLabel(self.input_section, text="入力画像プレビュー", font=self.default_font)
         self.input_preview_label.pack(anchor="center", pady=(2, 2))
         self.input_preview = ctk.CTkLabel(self.input_section, text="画像が読み込まれていません", font=self.default_font)

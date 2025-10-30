@@ -12,6 +12,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from .processor import MaskToNormalMap
 from .types import ProfileType, NormalMapType
 from . import i18n
+from .config import Config
 import tempfile
 
 
@@ -33,6 +34,22 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         # state
         self.input_file_path = ""
         self.processor = MaskToNormalMap()
+        # load/save user settings
+        # Note: avoid using attribute name `config` because Tk/Tkinter widgets expose
+        # a `config` method which can interfere with instance attribute lookup.
+        try:
+            self.app_config = Config()
+        except Exception:
+            self.app_config = None
+
+        # apply language from config (so labels build localized)
+        try:
+            if self.app_config:
+                lang = self.app_config.get('language')
+                if lang:
+                    i18n.set_language(lang)
+        except Exception:
+            pass
         self.preview_img = None
         self.preview_normal_img = None
         self._preview_thread = None
@@ -42,6 +59,46 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
 
         # build UI
         self._build_widgets()
+
+        # initialize UI state from config
+        try:
+            if self.app_config:
+                # last input path
+                last = self.app_config.get('last_input_path')
+                if last:
+                    # do not auto-load file, but populate entry
+                    self.file_entry.delete(0, tk.END)
+                    self.file_entry.insert(0, last)
+                    self.input_file_path = last
+                # last output dir
+                outdir = self.app_config.get('last_output_dir')
+                if outdir:
+                    self.output_dir_var.set(outdir)
+                # preview toggle
+                self.show_input_preview_var.set(bool(self.app_config.get('show_input_preview')))
+                # output resolution
+                try:
+                    self.output_resolution_var.set(str(int(self.app_config.get('default_output_resolution') or 2048)))
+                except Exception:
+                    pass
+                # radius and strength defaults
+                try:
+                    rad = self.app_config.get('default_radius')
+                    if rad is not None:
+                        self.radius_var.set(str(int(rad)))
+                except Exception:
+                    pass
+                try:
+                    st = self.app_config.get('default_strength')
+                    if st is not None:
+                        # store as string for the entry
+                        self.strength_var.set(str(float(st)))
+                except Exception:
+                    pass
+                # overwrite default
+                self.overwrite_var.set(bool(self.app_config.get('overwrite_by_default')))
+        except Exception:
+            pass
 
         # enable drag-and-drop (register drop target then bind)
         try:
@@ -108,6 +165,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.radius_var = ctk.StringVar(value="15")
         self.radius_entry = ctk.CTkEntry(rf, width=70, font=self.default_font, textvariable=self.radius_var, fg_color="#24262C", text_color="#E6EEF8")
         self.radius_entry.pack(side="left", padx=5)
+        # persist radius when changed (store as integer if possible)
+        try:
+            if self.app_config:
+                self.radius_var.trace_add('write', lambda *a: self._save_radius())
+        except Exception:
+            pass
         for ev in ("<KeyRelease>", "<FocusOut>", "<Return>"):
             self.radius_entry.bind(ev, self._on_param_change)
 
@@ -119,6 +182,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.strength_var = ctk.StringVar(value="1.0")
         self.strength_entry = ctk.CTkEntry(sf, width=70, font=self.default_font, textvariable=self.strength_var, fg_color="#24262C", text_color="#E6EEF8")
         self.strength_entry.pack(side="left", padx=5)
+        # persist strength when changed (store as float if possible)
+        try:
+            if self.app_config:
+                self.strength_var.trace_add('write', lambda *a: self._save_strength())
+        except Exception:
+            pass
         for ev in ("<KeyRelease>", "<FocusOut>", "<Return>"):
             self.strength_entry.bind(ev, self._on_param_change)
 
@@ -220,6 +289,17 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.invert_var.trace_add('write', lambda *a: self._schedule_preview())
         self.disable_blur_var.trace_add('write', lambda *a: self._schedule_preview())
 
+        # Persist certain settings when changed
+        try:
+            if self.app_config:
+                self.output_dir_var.trace_add('write', lambda *a: self.app_config.set('last_output_dir', self.output_dir_var.get()))
+                self.show_input_preview_var.trace_add('write', lambda *a: self.app_config.set('show_input_preview', bool(self.show_input_preview_var.get())))
+                self.output_resolution_var.trace_add('write', lambda *a: self.app_config.set('default_output_resolution', int(self.output_resolution_var.get())))
+                self.overwrite_var.trace_add('write', lambda *a: self.app_config.set('overwrite_by_default', bool(self.overwrite_var.get())))
+                # language checkbox will call _on_language_toggle which saves language
+        except Exception:
+            pass
+
         # Apply localized texts once more to ensure dynamic widgets show the right strings
         self._apply_localization()
 
@@ -275,6 +355,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             i18n.set_language('en')
         else:
             i18n.set_language('ja')
+        # persist
+        try:
+            if self.app_config:
+                self.app_config.set('language', 'en' if self.enable_english_var.get() else 'ja')
+        except Exception:
+            pass
         self._apply_localization()
 
     def _on_param_change(self, event=None):
@@ -350,6 +436,33 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         except Exception as e:
             self.update_status(f"{i18n.get('preview_update_failed')}: {e}")
 
+    # helpers to persist numeric parameters safely
+    def _save_radius(self):
+        try:
+            if not self.app_config:
+                return
+            v = self.radius_var.get()
+            try:
+                iv = int(float(v))
+            except Exception:
+                return
+            self.app_config.set('default_radius', int(iv))
+        except Exception:
+            pass
+
+    def _save_strength(self):
+        try:
+            if not self.app_config:
+                return
+            v = self.strength_var.get()
+            try:
+                fv = float(v)
+            except Exception:
+                return
+            self.app_config.set('default_strength', float(fv))
+        except Exception:
+            pass
+
     # file operations
     def browse_file(self):
         file_path = filedialog.askopenfilename(title=i18n.get('select_mask_file'), filetypes=[("PNG画像", "*.png"), ("すべてのファイル", "*.*")])
@@ -386,6 +499,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.input_preview.configure(image=self.preview_img, text="")
             # Use update_status so later preview updates can overwrite this message
             self.update_status(f"{i18n.get('status_loaded')}: {os.path.basename(file_path)}")
+            # persist last input path
+            try:
+                if self.app_config:
+                    self.app_config.set('last_input_path', file_path)
+            except Exception:
+                pass
             self._last_preview_params = None
             self._schedule_preview()
             self._refresh_input_preview()

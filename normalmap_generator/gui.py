@@ -50,6 +50,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                     i18n.set_language(lang)
         except Exception:
             pass
+        # track whether in-memory config has unsaved changes; we'll save once on app exit
+        self._config_dirty = False
         self.preview_img = None
         self.preview_normal_img = None
         self._preview_thread = None
@@ -107,6 +109,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.dnd_bind("<<Drop>>", self.on_drop)
         except Exception:
             # tkinterdnd2 may behave differently on some platforms; not fatal
+            pass
+
+        # Ensure config is saved once when the window closes (instead of saving on every change)
+        try:
+            self.protocol("WM_DELETE_WINDOW", self._on_close)
+        except Exception:
             pass
 
     def _build_widgets(self):
@@ -292,11 +300,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         # Persist certain settings when changed
         try:
             if self.app_config:
-                self.output_dir_var.trace_add('write', lambda *a: self.app_config.set('last_output_dir', self.output_dir_var.get()))
-                self.show_input_preview_var.trace_add('write', lambda *a: self.app_config.set('show_input_preview', bool(self.show_input_preview_var.get())))
-                self.output_resolution_var.trace_add('write', lambda *a: self.app_config.set('default_output_resolution', int(self.output_resolution_var.get())))
-                self.overwrite_var.trace_add('write', lambda *a: self.app_config.set('overwrite_by_default', bool(self.overwrite_var.get())))
-                # language checkbox will call _on_language_toggle which saves language
+                # write into app_config.data and mark dirty; we'll persist on exit
+                self.output_dir_var.trace_add('write', lambda *a: self._set_config_value('last_output_dir', self.output_dir_var.get()))
+                self.show_input_preview_var.trace_add('write', lambda *a: self._set_config_value('show_input_preview', bool(self.show_input_preview_var.get())))
+                self.output_resolution_var.trace_add('write', lambda *a: self._set_config_value('default_output_resolution', int(self.output_resolution_var.get())))
+                self.overwrite_var.trace_add('write', lambda *a: self._set_config_value('overwrite_by_default', bool(self.overwrite_var.get())))
+                # language checkbox will call _on_language_toggle which now marks dirty
         except Exception:
             pass
 
@@ -358,7 +367,12 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         # persist
         try:
             if self.app_config:
-                self.app_config.set('language', 'en' if self.enable_english_var.get() else 'ja')
+                # update in-memory and mark dirty; save on exit
+                try:
+                    self.app_config.data['language'] = 'en' if self.enable_english_var.get() else 'ja'
+                    self._config_dirty = True
+                except Exception:
+                    pass
         except Exception:
             pass
         self._apply_localization()
@@ -446,7 +460,9 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 iv = int(float(v))
             except Exception:
                 return
-            self.app_config.set('default_radius', int(iv))
+            # store in-memory and mark dirty; save on exit
+            self.app_config.data['default_radius'] = int(iv)
+            self._config_dirty = True
         except Exception:
             pass
 
@@ -459,9 +475,46 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 fv = float(v)
             except Exception:
                 return
-            self.app_config.set('default_strength', float(fv))
+            # store in-memory and mark dirty; save on exit
+            self.app_config.data['default_strength'] = float(fv)
+            self._config_dirty = True
         except Exception:
             pass
+
+    def _set_config_value(self, key, value):
+        """Update in-memory config and mark dirty; actual save happens on app close."""
+        try:
+            if not self.app_config:
+                return
+            # write to backing dict without calling Config.set (which writes immediately)
+            try:
+                self.app_config.data[key] = value
+                self._config_dirty = True
+            except Exception:
+                # best-effort: ignore write failure here
+                pass
+        except Exception:
+            pass
+
+    def _on_close(self):
+        """Called when the window is closed. Save config once if dirty, then destroy window."""
+        try:
+            if self.app_config and self._config_dirty:
+                try:
+                    self.app_config.save()
+                except Exception:
+                    # swallow save errors to avoid blocking close
+                    pass
+        except Exception:
+            pass
+        try:
+            # destroy the Tk window
+            self.destroy()
+        except Exception:
+            try:
+                self.quit()
+            except Exception:
+                pass
 
     # file operations
     def browse_file(self):
@@ -502,7 +555,11 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             # persist last input path
             try:
                 if self.app_config:
-                    self.app_config.set('last_input_path', file_path)
+                    try:
+                        self.app_config.data['last_input_path'] = file_path
+                        self._config_dirty = True
+                    except Exception:
+                        pass
             except Exception:
                 pass
             self._last_preview_params = None

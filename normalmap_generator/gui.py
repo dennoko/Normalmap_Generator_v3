@@ -384,7 +384,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             image.thumbnail((300, 300), Image.LANCZOS)
             self.preview_img = ImageTk.PhotoImage(image)
             self.input_preview.configure(image=self.preview_img, text="")
-            self.status_label.configure(text=f"{i18n.get('status_loaded')}: {os.path.basename(file_path)}")
+            # Use update_status so later preview updates can overwrite this message
+            self.update_status(f"{i18n.get('status_loaded')}: {os.path.basename(file_path)}")
             self._last_preview_params = None
             self._schedule_preview()
             self._refresh_input_preview()

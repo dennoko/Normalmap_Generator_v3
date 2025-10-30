@@ -48,4 +48,23 @@
   <string key="preview_update_failed">Preview update failed: {error}</string>
   <string key="error_title">Error</string>
   <string key="enable_english_mode">Enable English mode</string>
+  <string key="select_mask_file">Select mask image</string>
+  <string key="status_waiting">Status: Waiting</string>
+  <string key="status_generating_preview">Generating realtime preview...</string>
+  <string key="status_preview_updated">Realtime preview updated</string>
+  <string key="status_loaded">Loaded</string>
+  <string key="preview_load_failed">Preview load failed</string>
+  <string key="status_processing">Processing...</string>
+  <string key="processing_error">Processing error</string>
+  <string key="status_error">An error occurred</string>
+  <string key="status_saved">Saved normal map</string>
+  <string key="done_title">Done</string>
+  <string key="saved_message">Saved normal map</string>
+  <string key="invalid_file_title">Invalid file</string>
+  <string key="jpeg_convert_error">JPEG to PNG conversion error</string>
+  <string key="radius_positive">Radius must be a positive integer.</string>
+  <string key="strength_positive">Strength must be a positive number.</string>
+  <string key="invalid_number">An invalid number was entered.</string>
+  <string key="no_input_selected">No input file selected.</string>
+  <string key="preview_load_failed">Preview load failed</string>
 </resources>

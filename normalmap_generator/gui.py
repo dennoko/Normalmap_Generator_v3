@@ -65,14 +65,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         # initialize UI state from config
         try:
             if self.app_config:
-                # last input path
-                last = self.app_config.get('last_input_path')
-                if last:
-                    # do not auto-load file, but populate entry
-                    self.file_entry.delete(0, tk.END)
-                    self.file_entry.insert(0, last)
-                    self.input_file_path = last
-                # last output dir
+                # last output dir (input file path is intentionally NOT persisted)
                 outdir = self.app_config.get('last_output_dir')
                 if outdir:
                     self.output_dir_var.set(outdir)
@@ -562,16 +555,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.input_preview.configure(image=self.preview_img, text="")
             # Use update_status so later preview updates can overwrite this message
             self.update_status(f"{i18n.get('status_loaded')}: {os.path.basename(file_path)}")
-            # persist last input path
-            try:
-                if self.app_config:
-                    try:
-                        self.app_config.data['last_input_path'] = file_path
-                        self._config_dirty = True
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            # do not persist input file path by design
             self._last_preview_params = None
             self._schedule_preview()
             self._refresh_input_preview()

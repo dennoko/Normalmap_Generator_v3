@@ -13,7 +13,6 @@ APP_NAME = "Normalmap_Generator_v3"
 DEFAULTS = {
     "version": 1,
     "language": "ja",
-    "last_input_path": "",
     "last_output_dir": "",
     "show_input_preview": False,
     "default_output_resolution": 2048,
@@ -53,6 +52,8 @@ class Config:
                 # Merge defaults: ensure all keys present
                 merged = DEFAULTS.copy()
                 merged.update(d)
+                # Purge keys we no longer persist
+                merged.pop("last_input_path", None)
                 self.data = merged
         except Exception:
             # Backup broken file and reset to defaults

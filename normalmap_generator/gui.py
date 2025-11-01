@@ -419,17 +419,27 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             pil_image = Image.open(file_path).convert("L")
             pil_resized = pil_image.resize((512, 512), Image.LANCZOS)
             mask_img = np.array(pil_resized)
+            # convert to float 0..1 for processor compatibility
+            mask_float = mask_img.astype(np.float32)
+            if mask_float.max() > 1.0:
+                mask_float = mask_float / 255.0
             if self._preview_cancel_flag:
                 return
             profile_type = ProfileType(profile)
             normal_map_type = NormalMapType(ntype)
-            edges = self.processor.detect_edges(mask_img)
+            edges = self.processor.detect_edges(mask_float)
             if not disable_blur:
                 blurred = self.processor.apply_blur_profile_optimized(edges, radius, profile_type)
-                base_mask = 255 - mask_img if invert_mask else mask_img
-                height_map = cv2.min(base_mask, blurred)
+                base_mask = (1.0 - mask_float) if invert_mask else mask_float
+                # use same soft-min logic as process()
+                def smooth_min(a, b, k=8.0):
+                    ea = np.exp(-k * a)
+                    eb = np.exp(-k * b)
+                    return -np.log(ea + eb) / k
+
+                height_map = smooth_min(base_mask, blurred, k=max(1.0, float(radius) / 2.0))
             else:
-                height_map = 255 - mask_img if invert_mask else mask_img
+                height_map = (1.0 - mask_float) if invert_mask else mask_float
             if self._preview_cancel_flag:
                 return
             normal_map = self.processor.generate_normal_map(height_map, strength=strength, normal_map_type=normal_map_type)
@@ -437,7 +447,9 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 return
             self.after(0, lambda nm=normal_map: self._update_rt_preview(nm))
         except Exception as e:
-            self.after(0, lambda: self.update_status(f"{i18n.get('preview_error')}: {e}"))
+            msg = f"{i18n.get('preview_error')}: {e}"
+            # bind message into lambda default arg to avoid referencing exception var after except scope
+            self.after(0, lambda m=msg: self.update_status(m))
 
     def _update_rt_preview(self, normal_map):
         try:
@@ -714,7 +726,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
                 pass
             self.after(0, lambda: self._on_process_complete(output_path))
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror(i18n.get('error_title'), f"{i18n.get('processing_error')}: {e}"))
+            msg = f"{i18n.get('processing_error')}: {e}"
+            self.after(0, lambda m=msg: messagebox.showerror(i18n.get('error_title'), m))
             self.after(0, lambda: self.update_status(i18n.get('status_error')))
         finally:
             self.after(0, lambda: self.execute_button.configure(state="normal"))

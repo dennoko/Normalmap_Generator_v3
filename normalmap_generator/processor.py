@@ -75,8 +75,8 @@ class MaskToNormalMap:
         norm = np.linalg.norm(n, axis=2, keepdims=True)
         norm = np.maximum(norm, 1e-8)
         n = n / norm
-        # Y-flip for DirectX if needed
-        if normal_map_type == NormalMapType.DX:
+        # Y-flip for OpenGL if needed (flip convention)
+        if normal_map_type == NormalMapType.GL:
             n[..., 1] = -n[..., 1]
         # encode to 0..255 BGR
         encoded = np.empty((h, w, 3), dtype=np.float32)

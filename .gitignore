@@ -2,3 +2,4 @@
 *.spec
 *.pyc
 __pycache__/
+test_source/

@@ -17,12 +17,13 @@ class MaskToNormalMap:
         img = mask_img.astype(np.float32)
         if img.max() > 1.0:
             img = img / 255.0
-        sobel_x = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=3)
-        sobel_y = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=3)
+        # Use 32F throughout to avoid unsupported 32F->64F filter paths on some OpenCV builds
+        sobel_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
+        sobel_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
         k1 = np.array([[-1, -2, 0], [-2, 0, 2], [0, 2, 1]], dtype=np.float32)
         k2 = np.array([[0, -2, -1], [2, 0, -2], [1, 2, 0]], dtype=np.float32)
-        d1 = cv2.filter2D(img, cv2.CV_64F, k1)
-        d2 = cv2.filter2D(img, cv2.CV_64F, k2)
+        d1 = cv2.filter2D(img, cv2.CV_32F, k1)
+        d2 = cv2.filter2D(img, cv2.CV_32F, k2)
         mag = np.sqrt(sobel_x**2 + sobel_y**2 + d1**2 + d2**2)
         # normalize to 0..1 float
         mag = cv2.normalize(mag, None, 0.0, 1.0, cv2.NORM_MINMAX)

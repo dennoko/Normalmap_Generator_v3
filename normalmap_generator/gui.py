@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -26,6 +27,15 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         try:
             self.configure(bg="#0F1115")
         except Exception:
+            pass
+        # Ensure the window/taskbar icon is set early and reliably
+        try:
+            icon_path = self._resolve_resource_path(os.path.join("resource", "icon.ico"))
+            if os.path.exists(icon_path):
+                # On Windows, .ico is supported by iconbitmap
+                self.iconbitmap(icon_path)
+        except Exception:
+            # Non-fatal: if setting icon fails, continue without blocking app startup
             pass
         self.title("Normalmap Generator")
         self.geometry("900x700")
@@ -308,6 +318,23 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
 
         # Ensure initial visibility for input preview
         self._refresh_input_preview()
+
+    def _resolve_resource_path(self, relative_path: str) -> str:
+        """Resolve resource path that works in dev and frozen (PyInstaller) one-folder.
+
+        Priority:
+        - If frozen, use the directory containing the executable.
+        - Otherwise, resolve relative to the project root (parent of this package).
+        """
+        try:
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                # package dir: .../normalmap_generator; project root is its parent
+                base_dir = os.path.dirname(os.path.dirname(__file__))
+            return os.path.join(base_dir, relative_path)
+        except Exception:
+            return relative_path
 
     def _apply_localization(self):
         # Update text of widgets from i18n

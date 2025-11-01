@@ -117,6 +117,20 @@ Not saved on purpose:
 - The application may appear unresponsive during processing, but the operation is continuing in the background.
 - In some environments, software fonts may be replaced with other installed fonts, which might affect the GUI layout but not functionality.
 
+---
+
+## Installation (Windows)
+
+- Download the installer from your release page (Normalmap_Generator_v3_Setup_<version>.exe).
+- Double-click to run. The wizard will guide you through:
+   - Choosing the install location (default: Program Files)
+   - Optional desktop shortcut
+   - Start Menu entry is created automatically
+- After installation, launch from Start Menu or the desktop shortcut.
+- To uninstall: open “Settings > Apps > Installed apps” (or “Apps & features”), find “Normalmap Generator v3”, and uninstall.
+
+Note: The app window and taskbar icon use the bundled icon (resource/icon.ico) when running the packaged build.
+
 ## Libraries Used
 - This software uses the following libraries:
   - [OpenCV](https://opencv.org/) (Apache License 2.0)

@@ -3,3 +3,8 @@
 *.pyc
 __pycache__/
 test_source/
+dist/
+build/
+installer/
+DISTRIBUTION.md
+sign.ps1

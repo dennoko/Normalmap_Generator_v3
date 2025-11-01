@@ -89,27 +89,57 @@ class MaskToNormalMap:
 
     def process(self, input_path, output_path, profile_type=ProfileType.LINEAR, radius=15, strength=1.0,
                 normal_map_type=NormalMapType.DX, save_intermediates=False, invert_mask=False,
-                disable_blurring=True, overwrite_existing=True, intermediates_dir: str = None):
+                disable_blurring=True, overwrite_existing=True, intermediates_dir: str = None,
+                use_sdf_for_binary: bool = True):
         pil_image = Image.open(input_path).convert("L")
         mask_img = np.array(pil_image)
         # convert to float 0..1 for internal processing
         mask = mask_img.astype(np.float32)
         if mask.max() > 1.0:
             mask = mask / 255.0
-        edges = self.detect_edges(mask)
-        blurred = self.apply_blur_profile_optimized(edges, radius, profile_type)
-        if disable_blurring:
-            height_map = (1.0 - mask) if invert_mask else mask
-        else:
-            base_mask = (1.0 - mask) if invert_mask else mask
-            # soft min to avoid hard transitions
-            def smooth_min(a, b, k=8.0):
-                # a,b in 0..1
-                ea = np.exp(-k * a)
-                eb = np.exp(-k * b)
-                return -np.log(ea + eb) / k
+        # Decide path: SDF for strictly binary masks (0/1) to create stable ramps, else legacy path
+        def _is_binary(a: np.ndarray) -> bool:
+            # a is float32 in [0,1]; strict binary check
+            return np.all((a == 0.0) | (a == 1.0))
 
-            height_map = smooth_min(base_mask, blurred, k=max(1.0, float(radius) / 2.0))
+        if not disable_blurring and use_sdf_for_binary and _is_binary(mask):
+            # Signed/one-sided distance ramp depending on invert_mask
+            bin_img = (mask > 0.5).astype(np.uint8) * 255
+            dist_in = cv2.distanceTransform(bin_img, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+            dist_out = cv2.distanceTransform(255 - bin_img, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+            if invert_mask:
+                ramp = dist_out / max(1, int(radius))
+            else:
+                ramp = dist_in / max(1, int(radius))
+            ramp = np.clip(ramp, 0.0, 1.0).astype(np.float32)
+            # Apply same profile mapping semantics
+            if profile_type == ProfileType.LINEAR:
+                prof = ramp
+            elif profile_type == ProfileType.LOGARITHMIC:
+                prof = (np.log(1 + 9 * ramp) / np.log(10))
+            elif profile_type == ProfileType.EXPONENTIAL:
+                prof = (np.exp(ramp * 2.5) - 1) / (np.exp(2.5) - 1)
+            else:
+                prof = ramp
+            height_map = prof
+            # for intermediates
+            edges = None
+            blurred = prof
+        else:
+            edges = self.detect_edges(mask)
+            blurred = self.apply_blur_profile_optimized(edges, radius, profile_type)
+            if disable_blurring:
+                height_map = (1.0 - mask) if invert_mask else mask
+            else:
+                base_mask = (1.0 - mask) if invert_mask else mask
+                # soft min to avoid hard transitions
+                def smooth_min(a, b, k=8.0):
+                    # a,b in 0..1
+                    ea = np.exp(-k * a)
+                    eb = np.exp(-k * b)
+                    return -np.log(ea + eb) / k
+
+                height_map = smooth_min(base_mask, blurred, k=max(1.0, float(radius) / 2.0))
         normal = self.generate_normal_map(height_map, strength, normal_map_type)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         out_path = output_path
@@ -129,10 +159,11 @@ class MaskToNormalMap:
             os.makedirs(proc_dir, exist_ok=True)
             bn = os.path.basename(input_path).rsplit('.', 1)[0]
             # convert float intermediates back to 8-bit for saving
-            try:
-                cv2.imwrite(os.path.join(proc_dir, f"{bn}_edges.png"), (np.clip(edges, 0.0, 1.0) * 255.0).astype(np.uint8))
-            except Exception:
-                pass
+            if edges is not None:
+                try:
+                    cv2.imwrite(os.path.join(proc_dir, f"{bn}_edges.png"), (np.clip(edges, 0.0, 1.0) * 255.0).astype(np.uint8))
+                except Exception:
+                    pass
             try:
                 cv2.imwrite(os.path.join(proc_dir, f"{bn}_blurred.png"), (np.clip(blurred, 0.0, 1.0) * 255.0).astype(np.uint8))
             except Exception:

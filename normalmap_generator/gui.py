@@ -531,7 +531,10 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
 
     # file operations
     def browse_file(self):
-        file_path = filedialog.askopenfilename(title=i18n.get('select_mask_file'), filetypes=[("PNG画像", "*.png"), ("すべてのファイル", "*.*")])
+        file_path = filedialog.askopenfilename(
+            title=i18n.get('select_mask_file'),
+            filetypes=[("PNG/JPEG 画像", "*.png;*.jpg;*.jpeg"), ("すべてのファイル", "*.*")]
+        )
         if file_path:
             self.set_input_file(file_path)
 
@@ -540,16 +543,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         if file_path.startswith('{') and file_path.endswith('}'):
             file_path = file_path.strip('{}')
         if file_path.lower().endswith(('.png', '.jpg', '.jpeg')):
-            # If JPEG, attempt to convert to PNG (processor expects PNG-like masks)
-            if file_path.lower().endswith(('.jpg', '.jpeg')):
-                try:
-                    image = Image.open(file_path)
-                    png_file_path = file_path.rsplit('.', 1)[0] + '.png'
-                    image.save(png_file_path, format='PNG')
-                    file_path = png_file_path
-                except Exception as e:
-                    messagebox.showerror(i18n.get('error_title'), f"{i18n.get('jpeg_convert_error')}: {e}")
-                    return
+            # Accept JPEG/PNG as-is; no conversion/saving of input files
             self.set_input_file(file_path)
         else:
             messagebox.showwarning(i18n.get('invalid_file_title'), i18n.get('invalid_file_message'))

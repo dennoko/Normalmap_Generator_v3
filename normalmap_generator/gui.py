@@ -296,6 +296,7 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self.strength_var.trace_add('write', lambda *a: self._schedule_preview())
         self.invert_var.trace_add('write', lambda *a: self._schedule_preview())
         self.disable_blur_var.trace_add('write', lambda *a: self._schedule_preview())
+        self.normal_type_var.trace_add('write', lambda *a: self._schedule_preview())
 
         # Persist certain settings when changed
         try:

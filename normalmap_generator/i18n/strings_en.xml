@@ -14,8 +14,8 @@
   <string key="overwrite_label">Overwrite if file exists</string>
   <string key="advanced_settings">Advanced settings</string>
   <string key="normal_map_type">Normal map type:</string>
-  <string key="normal_map_dx">DirectX (Y+)</string>
-  <string key="normal_map_gl">OpenGL (Y-)</string>
+  <string key="normal_map_dx">DirectX (Y-)</string>
+  <string key="normal_map_gl">OpenGL (Y+)</string>
   <string key="save_intermediates">Save intermediate files</string>
   <string key="output_resolution_label">Output resolution:</string>
   <string key="output_dir_label">Output directory:</string>

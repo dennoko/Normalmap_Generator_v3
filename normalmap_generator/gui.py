@@ -342,10 +342,13 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             self.show_input_preview_cb.configure(text=i18n.get('show_input_preview'))
             self.execute_button.configure(text=i18n.get('generate_button'))
             self.realtime_label.configure(text=i18n.get('realtime_preview_title'))
-            self.rt_preview.configure(text=i18n.get('realtime_preview_placeholder'))
+            # 画像が表示中のときはプレースホルダ文字列を上書きしない（重ね表示防止）
+            if self.preview_normal_img is None:
+                self.rt_preview.configure(text=i18n.get('realtime_preview_placeholder'), image=None)
             self.input_preview_label.configure(text=i18n.get('input_preview_label'))
-            self.input_preview.configure(text=i18n.get('no_image_loaded'))
-            self.status_label.configure(text=i18n.get('status_waiting'))
+            if self.preview_img is None:
+                self.input_preview.configure(text=i18n.get('no_image_loaded'), image=None)
+            # ステータスは現在の状態を維持する（言語切替で上書きしない）
             self.lang_toggle.configure(text=i18n.get('enable_english_mode'))
         except Exception:
             # Best-effort localization; ignore individual failures

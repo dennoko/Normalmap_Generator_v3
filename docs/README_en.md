@@ -129,8 +129,6 @@ Not saved on purpose:
 - After installation, launch from Start Menu or the desktop shortcut.
 - To uninstall: open “Settings > Apps > Installed apps” (or “Apps & features”), find “Normalmap Generator v3”, and uninstall.
 
-Note: The app window and taskbar icon use the bundled icon (resource/icon.ico) when running the packaged build.
-
 ## Libraries Used
 - This software uses the following libraries:
   - [OpenCV](https://opencv.org/) (Apache License 2.0)

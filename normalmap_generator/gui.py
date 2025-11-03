@@ -32,8 +32,28 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         try:
             icon_path = self._resolve_resource_path(os.path.join("resource", "icon.ico"))
             if os.path.exists(icon_path):
-                # On Windows, .ico is supported by iconbitmap
-                self.iconbitmap(icon_path)
+                # On Windows, prefer setting the default icon for all toplevels
+                try:
+                    self.iconbitmap(default=icon_path)
+                except Exception:
+                    # Fallback: try standard iconbitmap
+                    try:
+                        self.iconbitmap(icon_path)
+                    except Exception:
+                        pass
+                # As a cross-platform fallback, also try iconphoto with a PIL-loaded image
+                try:
+                    pil_icon = Image.open(icon_path)
+                    # Convert to a PhotoImage (Tk requires a persistent reference)
+                    self._icon_photo = ImageTk.PhotoImage(pil_icon)
+                    self.iconphoto(True, self._icon_photo)
+                except Exception:
+                    pass
+                # Some Tk variants reset icons late; re-apply shortly after start
+                try:
+                    self.after(200, lambda p=icon_path: self._reapply_icon(p))
+                except Exception:
+                    pass
         except Exception:
             # Non-fatal: if setting icon fails, continue without blocking app startup
             pass
@@ -320,21 +340,43 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
         self._refresh_input_preview()
 
     def _resolve_resource_path(self, relative_path: str) -> str:
-        """Resolve resource path that works in dev and frozen (PyInstaller) one-folder.
+        """Resolve resource path that works in dev, PyInstaller one-folder, and one-file.
 
-        Priority:
-        - If frozen, use the directory containing the executable.
-        - Otherwise, resolve relative to the project root (parent of this package).
+        Order:
+        - If running as a PyInstaller one-file bundle, use sys._MEIPASS.
+        - Else if frozen (one-folder), use the executable directory.
+        - Else (dev), resolve relative to project root.
         """
         try:
             if getattr(sys, 'frozen', False):
-                base_dir = os.path.dirname(sys.executable)
+                # PyInstaller one-file exposes the extraction dir via _MEIPASS
+                base_dir = getattr(sys, '_MEIPASS', None) or os.path.dirname(sys.executable)
             else:
                 # package dir: .../normalmap_generator; project root is its parent
                 base_dir = os.path.dirname(os.path.dirname(__file__))
             return os.path.join(base_dir, relative_path)
         except Exception:
             return relative_path
+
+    def _reapply_icon(self, icon_path: str):
+        """Re-apply icon after startup to override potential late resets by toolkits."""
+        try:
+            if os.path.exists(icon_path):
+                try:
+                    self.iconbitmap(default=icon_path)
+                except Exception:
+                    try:
+                        self.iconbitmap(icon_path)
+                    except Exception:
+                        pass
+                try:
+                    pil_icon = Image.open(icon_path)
+                    self._icon_photo = ImageTk.PhotoImage(pil_icon)
+                    self.iconphoto(True, self._icon_photo)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def _apply_localization(self):
         # Update text of widgets from i18n

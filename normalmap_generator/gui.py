@@ -703,8 +703,26 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
     def _process_normal_map(self):
         try:
             input_dir = os.path.dirname(self.input_file_path)
-            output_dir = os.path.join(input_dir, "output")
-            os.makedirs(output_dir, exist_ok=True)
+            # Determine output directory: prefer user-specified, else default next to input
+            try:
+                user_out = (self.output_dir_var.get() or "").strip()
+            except Exception:
+                user_out = ""
+            if user_out:
+                output_dir = user_out
+            else:
+                output_dir = os.path.join(input_dir, "output")
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except Exception:
+                # If creating user-specified directory fails, fallback to input/output
+                try:
+                    fallback_dir = os.path.join(input_dir, "output")
+                    os.makedirs(fallback_dir, exist_ok=True)
+                    output_dir = fallback_dir
+                except Exception:
+                    # If even fallback fails, re-raise to surface error
+                    raise
             base_name = os.path.basename(self.input_file_path).split('.')[0]
             output_path = os.path.join(output_dir, f"{base_name}_normal.png")
             profile_type = ProfileType(self.profile_var.get())
@@ -751,7 +769,8 @@ class NormalMapGeneratorApp(TkinterDnD.Tk):
             # an explicit intermediates_dir when requested.
             intermediates_dir = None
             if save_intermediates:
-                # place intermediates next to the original input file for discoverability
+                # Place intermediates next to the original input file for discoverability
+                # (keep behavior unchanged regardless of custom output directory)
                 try:
                     intermediates_dir = os.path.join(os.path.dirname(self.input_file_path), "processing")
                 except Exception:
